@@ -1,0 +1,3 @@
+- This workspace contains a React frontend and an Express backend.
+- Use the project root at `/Users/neyazurrahman/login-app` for commands.
+- Run `npm install`, `npm run server`, and `npm run dev` to start both sides.
