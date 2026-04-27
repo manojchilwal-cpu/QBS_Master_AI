@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python server.py)",
+      "Bash(pip install *)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/ -o /dev/null -w \"%{http_code}\")",
+      "Bash(python -c \"from dotenv import load_dotenv; import os; load_dotenv\\(\\); print\\('Key set:', bool\\(os.environ.get\\('ANTHROPIC_API_KEY',''\\).strip\\(\\)\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/intake -F \"brief=Create a 30-second 2D animation for a coffee brand launch, deadline next Friday, high priority\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 26256 /F)",
+      "Bash(taskkill /PID 14956 /F)",
+      "Bash(taskkill /PID 5076 /F)",
+      "Bash(taskkill /PID 10376 /F)",
+      "PowerShell(Stop-Process -Id 26256, 14956, 5076, 10376 -Force -ErrorAction SilentlyContinue)",
+      "Bash(curl -s \"http://localhost:8000/health\")",
+      "PowerShell(Stop-Process -Force)",
+      "Bash(python -m json.tool)"
+    ]
+  }
+}

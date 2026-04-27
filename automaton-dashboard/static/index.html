@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automaton — Step 01: Intake Engine</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #181818;
+      --surface2: #222222;
+      --border: rgba(255,255,255,0.08);
+      --border2: rgba(255,255,255,0.15);
+      --text: #f0f0f0;
+      --muted: #888;
+      --dim: #555;
+      --accent: #d4a847;
+      --accent-dim: rgba(212,168,71,0.12);
+      --green: #3db87a;
+      --green-dim: rgba(61,184,122,0.12);
+      --red: #e05c5c;
+      --blue: #5b9cf6;
+      --blue-dim: rgba(91,156,246,0.12);
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* TOP BAR */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 32px;
+      border-bottom: 0.5px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .step-nav {
+      display: flex;
+      gap: 6px;
+    }
+
+    .step-pill {
+      font-size: 11px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 0.5px solid var(--border);
+      color: var(--dim);
+      cursor: default;
+      letter-spacing: 0.04em;
+    }
+
+    .step-pill.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .step-pill.locked {
+      opacity: 0.4;
+    }
+
+    .version-tag {
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 0.06em;
+    }
+
+    /* MAIN LAYOUT */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      min-height: calc(100vh - 53px);
+      background: var(--border);
+    }
+
+    .panel {
+      background: var(--bg);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .panel-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .panel-step {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .panel-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .panel-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .divider {
+      height: 0.5px;
+      background: var(--border);
+    }
+
+    /* DROP ZONE */
+    .drop-zone {
+      border: 1px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .drop-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 0.5px solid var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+
+    .drop-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .drop-sub {
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 0.04em;
+    }
+
+    /* FILE LIST */
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      border: 0.5px solid var(--border);
+    }
+
+    .file-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .badge-pdf { background: rgba(212,168,71,0.2); color: var(--accent); }
+    .badge-audio { background: var(--green-dim); color: var(--green); }
+    .badge-doc { background: var(--blue-dim); color: var(--blue); }
+
+    .file-name {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-size {
+      font-size: 11px;
+      color: var(--dim);
+      flex-shrink: 0;
+    }
+
+    .file-remove {
+      background: none;
+      border: none;
+      color: var(--dim);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 2px;
+      transition: color 0.1s;
+    }
+    .file-remove:hover { color: var(--red); }
+
+    /* TEXTAREA */
+    .field-label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.7;
+      padding: 12px;
+      resize: none;
+      transition: border-color 0.15s;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    textarea::placeholder { color: var(--dim); }
+
+    /* RUN BUTTON */
+    .run-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      border: 0.5px solid var(--accent);
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background 0.15s;
+      margin-top: auto;
+    }
+    .run-btn:hover { background: rgba(212,168,71,0.2); }
+    .run-btn:active { transform: scale(0.99); }
+    .run-btn.loading { opacity: 0.6; cursor: default; pointer-events: none; }
+
+    .spinner {
+      width: 13px;
+      height: 13px;
+      border: 1.5px solid rgba(212,168,71,0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      display: none;
+      animation: spin 0.6s linear infinite;
+    }
+    .loading .spinner { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* OUTPUT PANEL */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--dim);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .empty-box {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      border: 1px dashed var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* PROJECT CARD */
+    .project-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: fadeUp 0.25s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-block {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card-block-label {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .card-block-value {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.6;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      border: 0.5px solid var(--border);
+    }
+
+    .card-block-value.large {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .tag-type { background: var(--blue-dim); color: var(--blue); }
+    .tag-priority-High { background: rgba(224,92,92,0.12); color: var(--red); }
+    .tag-priority-Medium { background: var(--accent-dim); color: var(--accent); }
+    .tag-priority-Low { background: var(--green-dim); color: var(--green); }
+    .tag-timeline { background: var(--surface2); color: var(--muted); border: 0.5px solid var(--border); }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .list-items {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .list-item {
+      font-size: 12px;
+      color: var(--text);
+      padding: 6px 10px;
+      background: var(--surface);
+      border-radius: 4px;
+      border-left: 2px solid var(--border2);
+    }
+
+    .list-item.risk { border-left-color: var(--red); color: #f0a0a0; }
+    .list-item.deliverable { border-left-color: var(--green); }
+
+    .json-block {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 180px;
+      overflow-y: auto;
+      line-height: 1.7;
+    }
+
+    /* STATUS BAR */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 0.5px solid var(--border);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .export-btn {
+      margin-left: auto;
+      background: none;
+      border: 0.5px solid var(--border2);
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: color 0.1s, border-color 0.1s;
+    }
+    .export-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    .error-msg {
+      font-size: 12px;
+      color: var(--red);
+      background: rgba(224,92,92,0.1);
+      border: 0.5px solid rgba(224,92,92,0.3);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 700px) {
+      .main { grid-template-columns: 1fr; }
+      .step-nav { display: none; }
+      .topbar { padding: 12px 16px; }
+      .panel { padding: 20px 16px; }
+    }
+
+    /* ── Step 2 ────────────────────────────────────────────────── */
+    .step-pill.available { border-color: var(--muted); color: var(--muted); opacity: 1; }
+    .step-pill.done      { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+    .step2-section {
+      border-top: 0.5px solid var(--border);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .step2-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .step2-header .run-btn {
+      width: auto;
+      padding: 10px 24px;
+      margin-top: 0;
+      flex-shrink: 0;
+    }
+
+    .step2-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .breakdown-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .breakdown-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      border-bottom: 0.5px solid var(--border2);
+    }
+    .breakdown-table td {
+      padding: 10px 12px;
+      border-bottom: 0.5px solid var(--border);
+      vertical-align: top;
+      line-height: 1.6;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .breakdown-table td:first-child {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      white-space: nowrap;
+      width: 80px;
+    }
+    .breakdown-table td:last-child { color: var(--text); }
+
+    .phase-cards { display: flex; flex-direction: column; gap: 12px; }
+
+    .phase-card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .phase-card-header { display: flex; align-items: center; gap: 10px; }
+
+    .phase-letter {
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      background: var(--accent-dim);
+      border: 0.5px solid var(--accent);
+      color: var(--accent);
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .phase-title { font-size: 12px; font-weight: 700; color: var(--text); }
+
+    .phase-tasks { display: flex; flex-direction: column; gap: 3px; }
+
+    .phase-task {
+      font-size: 11px; color: var(--muted);
+      padding: 4px 8px;
+      background: var(--surface2);
+      border-radius: 4px; line-height: 1.5;
+    }
+
+    .ai-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      color: var(--blue); background: var(--blue-dim);
+      border-radius: 4px; padding: 4px 8px;
+    }
+
+    @media (max-width: 700px) {
+      .step2-section { padding: 20px 16px; }
+      .step2-body { grid-template-columns: 1fr; }
+      .step2-header { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <nav class="topbar">
+    <div class="logo">Automaton</div>
+    <div class="step-nav">
+      <span class="step-pill active">01 Intake</span>
+      <span class="step-pill locked">02 Classify</span>
+      <span class="step-pill locked">03 Plan</span>
+      <span class="step-pill locked">04 Execute</span>
+    </div>
+    <div class="version-tag">v0.1.0</div>
+  </nav>
+
+  <main class="main">
+
+    <!-- LEFT: INPUT PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-step">Step 01 — Intake Engine</div>
+        <div class="panel-title">Upload Client Materials</div>
+        <div class="panel-sub">Upload SOW, references, audio briefs. The LLM reads all inputs and outputs a Project Card.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- DROP ZONE -->
+      <div class="drop-zone" id="dropZone"
+        onclick="document.getElementById('fileInput').click()"
+        ondragover="event.preventDefault(); this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="handleDrop(event)">
+        <div class="drop-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="drop-title">Drop files here</div>
+        <div class="drop-sub">PDF · DOCX · MP3 · WAV · TXT</div>
+      </div>
+      <input type="file" id="fileInput" style="display:none" multiple
+        accept=".pdf,.mp3,.wav,.docx,.doc,.txt"
+        onchange="handleFiles(this.files)" />
+
+      <div class="file-list" id="fileList"></div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="field-label">Client brief / SOW notes</div>
+        <textarea id="briefText" rows="6"
+          placeholder="Paste the statement of work, project description, deadlines, brand guidelines, or any raw client notes here..."></textarea>
+      </div>
+
+      <button class="run-btn" id="runBtn" onclick="runIntake()">
+        <div class="spinner" id="spinner"></div>
+        <span id="runLabel">▶ Run Intake Analysis</span>
+      </button>
+    </div>
+
+    <!-- RIGHT: OUTPUT PANEL -->
+    <div class="panel" id="outputPanel">
+      <div class="panel-header">
+        <div class="panel-step">Output</div>
+        <div class="panel-title">Project Card</div>
+        <div class="panel-sub">Structured JSON — ready to pipe into Step 02 Classification.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="empty-state" id="emptyState">
+        <div class="empty-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" color="#555">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="8" y1="9" x2="16" y2="9" stroke="#555"/>
+            <line x1="8" y1="13" x2="16" y2="13" stroke="#555"/>
+            <line x1="8" y1="17" x2="12" y2="17" stroke="#555"/>
+          </svg>
+        </div>
+        <div>Upload files or paste a brief<br>then run the intake analysis</div>
+      </div>
+
+      <div class="project-card" id="projectCard" style="display:none"></div>
+
+      <div class="status-bar" id="statusBar" style="display:none">
+        <div class="status-dot"></div>
+        <span id="statusText">Processed · JSON ready</span>
+        <button class="export-btn" onclick="exportJSON()">Export JSON</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- STEP 2: CLASSIFICATION ENGINE -->
+  <section class="step2-section" id="step2Section" style="display:none">
+    <div class="step2-header">
+      <div class="panel-header">
+        <div class="panel-step">Step 02 — Classification Engine</div>
+        <div class="panel-title">Workflow Breakdown</div>
+        <div class="panel-sub">Backbone analysis · Type-specific variables · AI integration points per phase.</div>
+      </div>
+      <button class="run-btn" id="classifyBtn" onclick="runClassify()">
+        <div class="spinner" id="spinner2"></div>
+        <span id="classifyLabel">▶ Run Classification</span>
+      </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="step2-body" id="step2Body" style="display:none"></div>
+  </section>
+
+  <script>
+    // ─── State ───────────────────────────────────────────────────────────────
+    let uploadedFiles = [];
+    let lastResult   = null;
+
+    // ─── File Handling ────────────────────────────────────────────────────────
+    function handleDrop(e) {
+      e.preventDefault();
+      document.getElementById('dropZone').classList.remove('drag-over');
+      handleFiles(e.dataTransfer.files);
+    }
+
+    function handleFiles(files) {
+      for (const f of files) {
+        if (!uploadedFiles.find(x => x.name === f.name)) uploadedFiles.push(f);
+      }
+      renderFileList();
+    }
+
+    function removeFile(i) {
+      uploadedFiles.splice(i, 1);
+      renderFileList();
+    }
+
+    function renderFileList() {
+      const el = document.getElementById('fileList');
+      el.innerHTML = '';
+      uploadedFiles.forEach((f, i) => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        const cls = ext === 'pdf' ? 'pdf' : ['mp3','wav'].includes(ext) ? 'audio' : 'doc';
+        const lbl = ext === 'pdf' ? 'PDF' : ['mp3','wav'].includes(ext) ? 'AUD' : 'DOC';
+        const sz  = f.size < 1024*1024
+          ? Math.round(f.size / 1024) + ' KB'
+          : (f.size / 1024 / 1024).toFixed(1) + ' MB';
+        el.innerHTML += `
+          <div class="file-item">
+            <span class="file-badge badge-${cls}">${lbl}</span>
+            <span class="file-name">${esc(f.name)}</span>
+            <span class="file-size">${sz}</span>
+            <button class="file-remove" onclick="removeFile(${i})">×</button>
+          </div>`;
+      });
+    }
+
+    // ─── Main Intake Call ─────────────────────────────────────────────────────
+    async function runIntake() {
+      const brief = document.getElementById('briefText').value.trim();
+      const btn   = document.getElementById('runBtn');
+      const label = document.getElementById('runLabel');
+
+      if (uploadedFiles.length === 0 && !brief) {
+        document.getElementById('briefText').focus();
+        return;
+      }
+
+      btn.classList.add('loading');
+      label.textContent = 'Analyzing...';
+
+      const fileNames = uploadedFiles.map(f => f.name).join(', ') || 'none';
+
+      const prompt = `You are an LLM Intake Engine for a design and animation production studio.
+
+Analyze the following project inputs and produce a structured Project Card.
+
+Files uploaded: ${fileNames}
+Client brief / SOW:
+${brief || '(none provided)'}
+
+Return ONLY valid JSON (no markdown fences, no preamble) with exactly this structure:
+{
+  "project_name": "short inferred name",
+  "objective": "one sentence core deliverable goal",
+  "project_type": "2D Animation | Motion Graphics | Whiteboard | Slideshow | Unknown",
+  "brand_notes": "any brand, style, or visual identity hints",
+  "deliverables": ["array", "of", "expected", "outputs"],
+  "risks": ["missing info or concerns"],
+  "timeline_hint": "inferred or stated deadline",
+  "priority": "High | Medium | Low"
+}`;
+
+      try {
+        const formData = new FormData();
+        formData.append('brief', brief);
+        uploadedFiles.forEach(f => formData.append('files', f));
+
+        const res = await fetch('http://localhost:8000/api/intake', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const data = await res.json();
+        lastResult = data.project_card;
+        renderCard(lastResult);
+
+      } catch (err) {
+        // ── Fallback: show error with hint ──
+        renderError(err.message);
+      }
+
+      btn.classList.remove('loading');
+      label.textContent = '▶ Run Intake Analysis';
+    }
+
+    // ─── Render Project Card ──────────────────────────────────────────────────
+    function renderCard(d) {
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('statusBar').style.display  = 'flex';
+      document.getElementById('statusText').textContent   =
+        `Processed · ${new Date().toLocaleTimeString()} · JSON ready`;
+
+      const card = document.getElementById('projectCard');
+      card.style.display = 'flex';
+
+      const priCls = `tag-priority-${d.priority || 'Medium'}`;
+
+      card.innerHTML = `
+        <div class="card-block">
+          <div class="card-block-label">Project name</div>
+          <div class="card-block-value large">${esc(d.project_name)}</div>
+        </div>
+
+        <div class="card-block">
+          <div class="card-block-label">Objective</div>
+          <div class="card-block-value">${esc(d.objective)}</div>
+        </div>
+
+        <div class="tag-row">
+          <span class="tag tag-type">${esc(d.project_type)}</span>
+          <span class="tag ${priCls}">Priority: ${esc(d.priority)}</span>
+          ${d.timeline_hint ? `<span class="tag tag-timeline">${esc(d.timeline_hint)}</span>` : ''}
+        </div>
+
+        ${d.brand_notes ? `
+        <div class="card-block">
+          <div class="card-block-label">Brand notes</div>
+          <div class="card-block-value">${esc(d.brand_notes)}</div>
+        </div>` : ''}
+
+        <div class="two-col">
+          <div class="card-block">
+            <div class="card-block-label">Deliverables</div>
+            <div class="list-items">
+              ${(d.deliverables || []).map(x =>
+                `<div class="list-item deliverable">${esc(x)}</div>`).join('')}
+            </div>
+          </div>
+          <div class="card-block">
+            <div class="card-block-label">Risks / Gaps</div>
+            <div class="list-items">
+              ${(d.risks || []).map(x =>
+                `<div class="list-item risk">${esc(x)}</div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <div class="card-block-label">Raw JSON</div>
+          <div class="json-block">${esc(JSON.stringify(d, null, 2))}</div>
+        </div>`;
+
+      // Unlock Step 2
+      document.querySelectorAll('.step-pill').forEach(p => {
+        if (p.textContent.includes('02')) { p.classList.remove('locked'); p.classList.add('available'); }
+      });
+      document.getElementById('step2Section').style.display = 'flex';
+      setTimeout(() => document.getElementById('step2Section').scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+    }
+
+    function renderError(msg) {
+      document.getElementById('emptyState').style.display = 'none';
+      const card = document.getElementById('projectCard');
+      card.style.display = 'flex';
+      card.innerHTML = `<div class="error-msg">
+        <strong>Error:</strong> ${esc(msg)}<br><br>
+        Make sure the Python backend is running:<br>
+        <code>python server.py</code><br><br>
+        Then visit <code>http://localhost:8000</code>
+      </div>`;
+    }
+
+    function exportJSON() {
+      if (!lastResult) return;
+      const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `project-card-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function esc(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+    }
+
+    // ─── Step 2: Classification ───────────────────────────────────────────────
+    async function runClassify() {
+      if (!lastResult) return;
+      const btn   = document.getElementById('classifyBtn');
+      const label = document.getElementById('classifyLabel');
+      btn.classList.add('loading');
+      label.textContent = 'Classifying...';
+
+      try {
+        const res = await fetch('/api/classify', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ project_card: lastResult })
+        });
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const data = await res.json();
+        renderWorkflow(data.workflow);
+      } catch (err) {
+        const body = document.getElementById('step2Body');
+        body.style.display = 'block';
+        body.innerHTML = `<div class="error-msg"><strong>Error:</strong> ${esc(err.message)}</div>`;
+      }
+
+      btn.classList.remove('loading');
+      label.textContent = '▶ Re-run Classification';
+    }
+
+    function renderWorkflow(w) {
+      const body = document.getElementById('step2Body');
+      body.style.display = 'grid';
+
+      const rows = [
+        ['Asset Prep', (w.backbone?.asset_prep || []).join('<br>'), w.type_variables?.asset_prep || ''],
+        ['Logic',      (w.backbone?.logic      || []).join('<br>'), w.type_variables?.logic      || ''],
+        ['Review',     (w.backbone?.review     || []).join('<br>'), w.type_variables?.review     || ''],
+      ];
+
+      const tableHTML = `
+        <div class="card-block">
+          <div class="card-block-label">Modular Breakdown — ${esc(w.project_type)}</div>
+          <table class="breakdown-table">
+            <thead><tr>
+              <th>Category</th>
+              <th>Common Elements (Backbone)</th>
+              <th>Type-Specific Variables</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(([cat, common, spec]) => `
+                <tr>
+                  <td>${esc(cat)}</td>
+                  <td>${common}</td>
+                  <td>${esc(spec)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+      const phases = [
+        ['A', w.phases?.A_visual_storyboard],
+        ['B', w.phases?.B_artwork_structure],
+        ['C', w.phases?.C_animation_setup],
+      ];
+
+      const phasesHTML = `
+        <div class="phase-cards">
+          ${phases.map(([letter, p]) => !p ? '' : `
+            <div class="phase-card">
+              <div class="phase-card-header">
+                <div class="phase-letter">${letter}</div>
+                <div class="phase-title">${esc(p.title)}</div>
+              </div>
+              <div class="phase-tasks">
+                ${(p.tasks || []).map(t => `<div class="phase-task">${esc(t)}</div>`).join('')}
+              </div>
+              <div class="ai-badge">AI — ${esc(p.ai_integration)}</div>
+            </div>`).join('')}
+        </div>`;
+
+      body.innerHTML = tableHTML + phasesHTML;
+
+      document.querySelectorAll('.step-pill').forEach(p => {
+        if (p.textContent.includes('01')) { p.classList.remove('active'); p.classList.add('done'); }
+        if (p.textContent.includes('02')) { p.classList.remove('available'); p.classList.add('active'); }
+      });
+
+      body.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,23 @@
+# Automaton — Step 01 Intake Engine
+# Python dependencies
+
+# Environment
+python-dotenv>=1.0.0
+
+# Web server
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# OpenAI API (ChatGPT + Whisper)
+openai>=1.30.0
+
+# File parsing
+pdfplumber>=0.10.0        # PDF text extraction
+python-docx>=1.1.0        # DOCX text extraction
+
+# Optional — advanced PDF fallback
+# pypdf>=4.0.0
+
+# Optional — local Whisper (if you don't want to use OpenAI's API)
+# openai-whisper>=20231117
